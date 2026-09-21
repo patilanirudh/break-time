@@ -39,3 +39,17 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Run]
 Filename: "{app}\breaktime.exe"; Description: "Launch {#MyAppName} now"; Flags: nowait postinstall skipifsilent
+
+[Code]
+// The app manages its own auto-start entry at runtime (HKCU Run key, toggleable from
+// the tray menu -- see src/breaktime/platform/autostart.py), so Inno Setup never wrote
+// it and won't know to remove it by default. Without this, uninstalling leaves a
+// dangling Run key pointing at deleted files. Safe to call even if the value is already
+// gone (toggled off, or never enabled).
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    RegDeleteValue(HKEY_CURRENT_USER, 'Software\Microsoft\Windows\CurrentVersion\Run', 'BreakTime');
+  end;
+end;
