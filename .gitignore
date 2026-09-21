@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local app data (never commit user data)
+.breaktime/
+*.db
+*.db-journal
+*.log
+
+# Type checking / tooling caches
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Packaging build artifacts
+packaging/build/
+packaging/dist/
+dist/
+build/
+*.exe
+*.msi
+
+# Downloaded ML model (fetched by scripts/download_model.py, not committed)
+src/breaktime/vision/models/*.task
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Env files (never commit secrets)
+.env
+.env.local

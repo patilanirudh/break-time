@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build-windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install project + build tools
+        run: |
+          pip install -e .
+          pip install pyinstaller
+
+      - name: Download face detection model
+        run: python scripts/download_model.py
+
+      - name: Build PyInstaller bundle
+        run: pyinstaller packaging/breaktime.spec --noconfirm
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        run: |
+          $env:BREAKTIME_VERSION = "${{ github.ref_name }}".TrimStart("v")
+          iscc packaging/installer.iss
+
+      - name: Upload installer to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: packaging/dist/BreakTimeSetup-*.exe

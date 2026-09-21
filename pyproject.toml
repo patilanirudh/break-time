@@ -1,0 +1,88 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "breaktime"
+version = "0.1.0"
+description = "Privacy-first eye-strain and break tracker that verifies breaks via on-device vision, not just a dismissible popup."
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+authors = [
+    { name = "Break-Time Contributors" },
+]
+keywords = ["eye-strain", "wellbeing", "computer-vision", "break-reminder", "privacy"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Utilities",
+]
+
+dependencies = [
+    "opencv-python>=4.10",
+    "mediapipe>=0.10",
+    "numpy>=1.26",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "pystray>=0.19",
+    "pillow>=10.3",
+    "win11toast>=0.35; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.15",
+    "mypy>=1.11",
+    "pytest>=8.2",
+    "pytest-cov>=5.0",
+    "pre-commit>=3.7",
+    "pip-audit>=2.7",
+]
+
+[project.scripts]
+breaktime = "breaktime.main:main"
+
+[project.urls]
+Homepage = "https://github.com/"
+Issues = "https://github.com/"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/breaktime"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "N", "C4"]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_ignores = true
+show_error_codes = true
+exclude = ["tests/"]
+
+[[tool.mypy.overrides]]
+module = ["cv2.*", "mediapipe.*", "pystray.*", "win11toast.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=breaktime --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["src/breaktime"]
+omit = ["src/breaktime/vision/capture.py"]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
