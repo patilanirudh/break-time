@@ -34,3 +34,10 @@ def show_break_prompt(*, on_snooze: Callable[[], None] | None = None) -> None:
 def show_break_verified() -> None:
     log_event(_logger, "break_verified_toast_shown")
     notify("Nice work", "Break verified, your timer has reset.")
+
+
+def show_calibration_step(instruction: str, *, seconds: int) -> None:
+    """Announces a calibration phase -- the tray app has no window to show this in
+    otherwise (unlike --debug-preview, which overlays it on the camera feed directly)."""
+    log_event(_logger, "calibration_step_shown", instruction=instruction)
+    notify("Break-Time setup", f"{instruction} ({seconds}s)")

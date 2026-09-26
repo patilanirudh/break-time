@@ -30,6 +30,7 @@ dependencies = [
     "pydantic-settings>=2.3",
     "pystray>=0.19",
     "pillow>=10.3",
+    "psutil>=6.0",
     "win11toast>=0.35; sys_platform == 'win32'",
 ]
 
@@ -73,7 +74,7 @@ show_error_codes = true
 exclude = ["tests/"]
 
 [[tool.mypy.overrides]]
-module = ["cv2.*", "mediapipe.*", "pystray.*", "win11toast.*"]
+module = ["cv2.*", "mediapipe.*", "pystray.*", "win11toast.*", "psutil.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

@@ -10,7 +10,8 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
-from breaktime.core.types import BreakEvent, DetectionResult, TriggerReason
+from breaktime.core.types import BreakEvent, CalibrationProfile, DetectionResult, TriggerReason
+from breaktime.vision.gaze import is_looking_at_screen
 
 
 @dataclass
@@ -19,6 +20,7 @@ class VerifiedBreakTracker:
 
     required_away_seconds: float
     trigger_reason: TriggerReason
+    calibration: CalibrationProfile
     _started_at: float = field(default_factory=time.time)
     _away_since: float | None = None
     _completed_at: float | None = None
@@ -31,8 +33,19 @@ class VerifiedBreakTracker:
         if self.is_verified:
             return
 
-        # No face at all (stepped away) counts as "looking away" -- that's a real break.
-        looking_away = (not result.face_present) or (result.gaze_on_screen is False)
+        if not result.face_present:
+            # Stepped away entirely -- unambiguous, counts as looking away.
+            looking_away = True
+        else:
+            on_screen = is_looking_at_screen(result, self.calibration)
+            if on_screen is None:
+                # No reliable signal this frame (e.g. mid-blink) -- neither confirms
+                # nor breaks an away streak. Treating this as "still on screen" was a
+                # real bug: it silently reset genuine away streaks on every blink,
+                # since blinks happen constantly and were previously indistinguishable
+                # from "confirmed looking at the screen."
+                return
+            looking_away = on_screen is False
 
         if looking_away:
             if self._away_since is None:

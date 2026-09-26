@@ -20,6 +20,7 @@ from breaktime.core.types import CalibrationProfile, DetectionResult
 from breaktime.vision.calibration import CalibrationSession
 from breaktime.vision.capture import Frame, frames, open_camera
 from breaktime.vision.detection import FaceDetector
+from breaktime.vision.gaze import is_looking_at_screen
 
 _WINDOW_NAME = "Break-Time debug preview (press q to quit)"
 _TEXT_COLOR = (0, 255, 0)
@@ -42,11 +43,11 @@ def _calibrate_with_preview(
         detection, _ = detector.analyze(frame)
         session.observe(detection)
 
-        remaining = max(0.0, session.duration_seconds - session.elapsed_seconds)
+        remaining = session.current_phase_remaining_seconds
         _draw_overlay(
             frame,
             [
-                f"CALIBRATING -- look at the screen normally ({remaining:0.0f}s left)",
+                f"CALIBRATING: {session.current_instruction} ({remaining:0.0f}s left)",
                 f"face_present={detection.face_present}  ear={_fmt(detection.ear)}",
             ],
         )
@@ -79,11 +80,26 @@ def _detect_with_preview(
 
 
 def _status_lines(detection: DetectionResult, profile: CalibrationProfile) -> list[str]:
+    on_screen = is_looking_at_screen(detection, profile)
+    yaw_r, pitch_r = profile.on_screen_yaw_range, profile.on_screen_pitch_range
+    yaw_line = (
+        f"head_yaw={_fmt(detection.head_yaw_deg)} (ok {yaw_r.minimum:.1f}..{yaw_r.maximum:.1f})  "
+        f"pitch={_fmt(detection.head_pitch_deg)} (ok {pitch_r.minimum:.1f}..{pitch_r.maximum:.1f})"
+    )
+    gaze_h_r = profile.on_screen_gaze_horizontal_range
+    gaze_v_r = profile.on_screen_gaze_vertical_range
+    gaze_line = (
+        f"gaze_h={_fmt(detection.gaze_horizontal_ratio)} "
+        f"(ok {gaze_h_r.minimum:.2f}..{gaze_h_r.maximum:.2f})  "
+        f"gaze_v={_fmt(detection.gaze_vertical_ratio)} "
+        f"(ok {gaze_v_r.minimum:.2f}..{gaze_v_r.maximum:.2f})"
+    )
     return [
         f"face_present={detection.face_present}",
         f"ear={_fmt(detection.ear)}  blink_threshold={profile.blink_ear_threshold:.3f}",
-        f"gaze_on_screen={detection.gaze_on_screen}",
-        f"head_yaw={_fmt(detection.head_yaw_deg)}  head_pitch={_fmt(detection.head_pitch_deg)}",
+        f"looking_at_screen={on_screen}",
+        yaw_line,
+        gaze_line,
         f"baseline_blink_rate={profile.baseline_blink_rate_per_min:.1f}/min",
     ]
 

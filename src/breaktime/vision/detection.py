@@ -36,9 +36,20 @@ MODEL_PATH = Path(__file__).parent / "models" / "face_landmarker.task"
 _LEFT_EYE = [33, 160, 158, 133, 153, 144]
 _RIGHT_EYE = [362, 385, 387, 263, 373, 380]
 
+# The 10 iris landmarks (468-477) split 5/5 between the two eyes; each cluster surrounds
+# its iris tightly, so averaging all 5 gives a robust center estimate without depending
+# on which specific point is nominally "the center" (index semantics for this vary across
+# sources/versions -- averaging sidesteps that ambiguity). Empirically confirmed live
+# (see docs/ROADMAP.md gaze notes) that 468-472 pairs with _LEFT_EYE and 473-477 with
+# _RIGHT_EYE.
+_LEFT_IRIS = [468, 469, 470, 471, 472]
+_RIGHT_IRIS = [473, 474, 475, 476, 477]
+
 # Landmarks + matching generic 3D face model points used for solvePnP head-pose
 # estimation. The 3D points are an approximate average face geometry (not user-specific)
-# -- sufficient for a coarse "facing the screen or not" signal, not precision tracking.
+# -- sufficient for a coarse head-orientation signal, not precision tracking. Whether a
+# given yaw/pitch counts as "looking at the screen" is decided elsewhere (vision/gaze.py)
+# relative to the user's own calibrated baseline, not a fixed absolute angle.
 _POSE_LANDMARKS = [1, 152, 33, 263, 61, 291]
 _MODEL_POINTS_3D = np.array(
     [
@@ -51,9 +62,6 @@ _MODEL_POINTS_3D = np.array(
     ],
     dtype=np.float64,
 )
-
-_GAZE_ON_SCREEN_YAW_DEG = 20.0
-_GAZE_ON_SCREEN_PITCH_DEG = 20.0
 
 
 class FaceDetector:
@@ -94,9 +102,10 @@ class FaceDetector:
                     timestamp=timestamp,
                     face_present=False,
                     ear=None,
-                    gaze_on_screen=None,
                     head_yaw_deg=None,
                     head_pitch_deg=None,
+                    gaze_horizontal_ratio=None,
+                    gaze_vertical_ratio=None,
                 ),
                 None,
             )
@@ -106,17 +115,16 @@ class FaceDetector:
 
         ear = _eye_aspect_ratio(points)
         yaw_deg, pitch_deg = _head_pose(points, width, height)
-        gaze_on_screen = (
-            abs(yaw_deg) <= _GAZE_ON_SCREEN_YAW_DEG and abs(pitch_deg) <= _GAZE_ON_SCREEN_PITCH_DEG
-        )
+        gaze_h, gaze_v = _eye_gaze_ratio(points)
 
         detection = DetectionResult(
             timestamp=timestamp,
             face_present=True,
             ear=ear,
-            gaze_on_screen=gaze_on_screen,
             head_yaw_deg=yaw_deg,
             head_pitch_deg=pitch_deg,
+            gaze_horizontal_ratio=gaze_h,
+            gaze_vertical_ratio=gaze_v,
         )
         mood = estimate_tension(points, timestamp) if include_mood else None
         return detection, mood
@@ -137,6 +145,37 @@ def _single_eye_ratio(points: np.ndarray, indices: list[int]) -> float:
     if horizontal == 0:
         return 0.0
     return float((vertical_1 + vertical_2) / (2.0 * horizontal))
+
+
+def _eye_gaze_ratio(points: np.ndarray) -> tuple[float, float]:
+    """Average, across both eyes, where the iris sits within its eye socket.
+
+    ~0.5 horizontal/vertical means centered; deviating toward 0 or 1 means the eye has
+    rolled toward that side -- independent of head orientation, which is exactly the
+    signal head-pose-only detection is missing (a glance with the head held still).
+    """
+    left_h, left_v = _single_eye_gaze(points, _LEFT_EYE, _LEFT_IRIS)
+    right_h, right_v = _single_eye_gaze(points, _RIGHT_EYE, _RIGHT_IRIS)
+    return (left_h + right_h) / 2.0, (left_v + right_v) / 2.0
+
+
+def _single_eye_gaze(
+    points: np.ndarray, eye_indices: list[int], iris_indices: list[int]
+) -> tuple[float, float]:
+    eye = points[eye_indices]
+    left_corner, right_corner = eye[0], eye[3]
+    top = (eye[1] + eye[2]) / 2.0
+    bottom = (eye[4] + eye[5]) / 2.0
+    iris_center = points[iris_indices].mean(axis=0)
+
+    eye_width = right_corner[0] - left_corner[0]
+    eye_height = bottom[1] - top[1]
+    if eye_width == 0 or eye_height == 0:
+        return 0.5, 0.5
+
+    horizontal_ratio = (iris_center[0] - left_corner[0]) / eye_width
+    vertical_ratio = (iris_center[1] - top[1]) / eye_height
+    return float(horizontal_ratio), float(vertical_ratio)
 
 
 def _head_pose(points: np.ndarray, width: int, height: int) -> tuple[float, float]:

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import platform
 import sys
+import threading
 import traceback
 from types import TracebackType
 
@@ -24,7 +25,15 @@ _logger = get_logger("diagnostics.crash_reporter")
 
 
 def install(*, enabled: bool) -> None:
-    """Install a global excepthook. Always logs locally; only reports if `enabled`."""
+    """Install global exception hooks for both the main thread and background threads.
+
+    `sys.excepthook` alone only catches exceptions on the main thread -- the camera/
+    detection loop runs on a background thread (see main.py), so without
+    `threading.excepthook` too, an exception there (e.g. the webcam being unavailable)
+    would silently kill that thread with no log entry and no visible error: the tray
+    icon would just sit there doing nothing, forever, with no indication anything was
+    wrong. Both paths funnel through the same handling so nothing is missed.
+    """
 
     def _handle(
         exc_type: type[BaseException], exc: BaseException, tb: TracebackType | None
@@ -36,9 +45,17 @@ def install(*, enabled: bool) -> None:
         if enabled:
             _report(exc_type, trace_text)
 
+    def _handle_main_thread(
+        exc_type: type[BaseException], exc: BaseException, tb: TracebackType | None
+    ) -> None:
+        _handle(exc_type, exc, tb)
         sys.__excepthook__(exc_type, exc, tb)
 
-    sys.excepthook = _handle
+    def _handle_background_thread(args: threading.ExceptHookArgs) -> None:
+        _handle(args.exc_type, args.exc_value or args.exc_type(), args.exc_traceback)
+
+    sys.excepthook = _handle_main_thread
+    threading.excepthook = _handle_background_thread
 
 
 def _report(exc_type: type[BaseException], trace_text: str) -> None:

@@ -1,4 +1,4 @@
-from breaktime.core.types import CalibrationProfile, DetectionResult, TriggerReason
+from breaktime.core.types import CalibrationProfile, DetectionResult, GazeRange, TriggerReason
 from breaktime.state.session import SessionTracker
 
 
@@ -7,6 +7,10 @@ def _profile(baseline_blink_rate: float = 15.0) -> CalibrationProfile:
         baseline_ear=0.3,
         baseline_blink_rate_per_min=baseline_blink_rate,
         blink_ear_threshold=0.21,  # between the tests' ear=0.1 (closed) and ear=0.3 (open)
+        on_screen_yaw_range=GazeRange(minimum=-15.0, maximum=15.0),
+        on_screen_pitch_range=GazeRange(minimum=-15.0, maximum=15.0),
+        on_screen_gaze_horizontal_range=GazeRange(minimum=0.35, maximum=0.65),
+        on_screen_gaze_vertical_range=GazeRange(minimum=0.35, maximum=0.65),
         calibrated_at=0.0,
     )
 
@@ -16,9 +20,10 @@ def _detection(timestamp: float, *, face_present: bool = True, ear: float = 0.3)
         timestamp=timestamp,
         face_present=face_present,
         ear=ear if face_present else None,
-        gaze_on_screen=True,
         head_yaw_deg=0.0,
         head_pitch_deg=0.0,
+        gaze_horizontal_ratio=0.5,
+        gaze_vertical_ratio=0.5,
     )
 
 

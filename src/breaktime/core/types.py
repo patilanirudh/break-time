@@ -33,28 +33,64 @@ class SessionPhase(Enum):
 
 @dataclass(frozen=True, slots=True)
 class DetectionResult:
-    """Output of one vision analysis pass over a single (immediately discarded) frame."""
+    """Output of one vision analysis pass over a single (immediately discarded) frame.
+
+    `gaze_horizontal_ratio` / `gaze_vertical_ratio` are raw eye-in-socket signals (iris
+    center position relative to the eye corners, ~0.5 when centered) -- deliberately raw,
+    not a precomputed "on screen" boolean, because judging that requires comparing against
+    a user's own calibrated baseline (see vision/gaze.py). Head pose alone (yaw/pitch)
+    cannot tell "looking at the keyboard" or "eyes moved, head didn't" apart from "looking
+    at the screen" -- that's what the gaze ratios add.
+    """
 
     timestamp: float
     face_present: bool
     ear: float | None
-    gaze_on_screen: bool | None
     head_yaw_deg: float | None
     head_pitch_deg: float | None
+    gaze_horizontal_ratio: float | None
+    gaze_vertical_ratio: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class GazeRange:
+    """An observed min/max span for one signal across all "genuinely on-screen" looks
+    recorded during calibration (center plus each screen edge), with a small margin
+    already folded in to absorb ordinary frame-to-frame noise.
+
+    This replaces an earlier single-center-point-plus-fixed-tolerance design: live
+    testing showed a symmetric tolerance around one center reading can't tell a glance
+    at the screen's own edge apart from a glance just beyond it (e.g. down at a
+    keyboard), because both may be a similar angular distance from center. Calibrating
+    against the actual screen edges directly grounds "on screen" in what the screen
+    itself covers for this user's camera and seating position, not a guessed number.
+    """
+
+    minimum: float
+    maximum: float
+
+    def contains(self, value: float) -> bool:
+        return self.minimum <= value <= self.maximum
 
 
 @dataclass(frozen=True, slots=True)
 class CalibrationProfile:
     """A user's personalized baseline, captured once during first-run calibration.
 
-    `blink_ear_threshold` is derived from this user's own open-eye EAR (a ratio, not a
-    fixed constant) -- absolute EAR magnitude varies meaningfully across people, cameras,
-    and lighting, so a single hardcoded threshold is not reliable across users.
+    Every threshold here is derived from this user's own measurements, not a fixed
+    constant -- absolute EAR, head pose, and eye position all vary meaningfully across
+    people, camera placement, and lighting, so one hardcoded number is not reliable
+    across users (confirmed live: a fixed blink threshold and a fixed head-angle gaze
+    threshold both produced wrong results for real users/webcam setups).
     """
 
     baseline_ear: float
     baseline_blink_rate_per_min: float
     blink_ear_threshold: float
+    on_screen_yaw_range: GazeRange
+    on_screen_pitch_range: GazeRange
+    on_screen_gaze_horizontal_range: GazeRange
+    on_screen_gaze_vertical_range: GazeRange
     calibrated_at: float
 
 
