@@ -22,6 +22,11 @@ Three things confirmed live, not hypothetically, that shaped this design:
   such outlier permanently and silently widens "on screen" to include nonsense values --
   far more damaging here than it would be to a mean. So blink frames are identified and
   excluded *before* computing ranges, not just at judgment time (see vision/gaze.py).
+  Excluding *every* low-EAR frame this way was itself found live to be too broad: a hard
+  eyes-only glance can also lower EAR (eyelid shape changes with gaze angle) and *sustain*
+  it for the whole glance, not just a blink's ~100-400ms. Only a brief low-EAR run is
+  treated as a blink and dropped; a sustained one is kept, using the same duration-based
+  rule as live judgment (vision/gaze.py's `MAX_BLINK_DURATION_SECONDS`).
 """
 
 from __future__ import annotations
@@ -31,6 +36,7 @@ from dataclasses import dataclass, field
 
 from breaktime.core.errors import CalibrationIncompleteError
 from breaktime.core.types import CalibrationProfile, DetectionResult, GazeRange
+from breaktime.vision.gaze import MAX_BLINK_DURATION_SECONDS
 
 _MIN_VALID_SAMPLES = 20
 _BLINK_THRESHOLD_RATIO = 0.75
@@ -57,9 +63,11 @@ _DEFAULT_PHASES: tuple[_Phase, ...] = (
 @dataclass(frozen=True, slots=True)
 class _Sample:
     """One frame's worth of raw signals, kept together so blink exclusion (which needs
-    `ear`) can be applied consistently to the pose/gaze values from that same frame."""
+    `ear` and `timestamp`) can be applied consistently to the pose/gaze values from that
+    same frame."""
 
     phase: str
+    timestamp: float
     ear: float | None
     yaw: float | None
     pitch: float | None
@@ -112,6 +120,7 @@ class CalibrationSession:
             self._samples.append(
                 _Sample(
                     phase=self.current_phase_name,
+                    timestamp=result.timestamp,
                     ear=result.ear,
                     yaw=result.head_yaw_deg,
                     pitch=result.head_pitch_deg,
@@ -149,7 +158,9 @@ class CalibrationSession:
         # Blink frames produce unreliable eye/pose readings (see module docstring) --
         # exclude them from the on-screen range, not just from live judgment, since a
         # min/max range is far more sensitive to a single outlier than an average is.
-        awake = [s for s in self._samples if s.ear is None or s.ear >= blink_ear_threshold]
+        # Only a *brief* low-EAR run is a blink; a sustained one is a real gaze signal
+        # (see module docstring) and must be kept, not discarded.
+        awake = _exclude_transient_blinks(self._samples, blink_ear_threshold)
 
         return CalibrationProfile(
             baseline_ear=baseline_ear,
@@ -179,6 +190,32 @@ def _range_with_margin(samples: list[float], margin: float) -> GazeRange:
     if not samples:
         return GazeRange(minimum=-margin, maximum=margin)
     return GazeRange(minimum=min(samples) - margin, maximum=max(samples) + margin)
+
+
+def _exclude_transient_blinks(samples: list[_Sample], threshold: float) -> list[_Sample]:
+    """Drop samples that are part of a brief (<= MAX_BLINK_DURATION_SECONDS) low-EAR
+    run -- a real blink -- while keeping samples from a longer, sustained low-EAR run,
+    which is a genuine gaze signal, not a blink (see module docstring)."""
+    kept: list[_Sample] = []
+    pending_run: list[_Sample] = []
+
+    def flush_run() -> None:
+        if not pending_run:
+            return
+        duration = pending_run[-1].timestamp - pending_run[0].timestamp
+        if duration > MAX_BLINK_DURATION_SECONDS:
+            kept.extend(pending_run)
+        pending_run.clear()
+
+    for sample in samples:
+        is_low_ear = sample.ear is not None and sample.ear < threshold
+        if is_low_ear:
+            pending_run.append(sample)
+        else:
+            flush_run()
+            kept.append(sample)
+    flush_run()
+    return kept
 
 
 def _count_blinks(ear_samples: list[float], threshold: float) -> int:

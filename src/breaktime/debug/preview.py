@@ -20,7 +20,7 @@ from breaktime.core.types import CalibrationProfile, DetectionResult
 from breaktime.vision.calibration import CalibrationSession
 from breaktime.vision.capture import Frame, frames, open_camera
 from breaktime.vision.detection import FaceDetector
-from breaktime.vision.gaze import is_looking_at_screen
+from breaktime.vision.gaze import GazeMonitor
 
 _WINDOW_NAME = "Break-Time debug preview (press q to quit)"
 _TEXT_COLOR = (0, 255, 0)
@@ -67,9 +67,10 @@ def _detect_with_preview(
     settings: BreakTimeSettings,
     profile: CalibrationProfile,
 ) -> None:
+    gaze_monitor = GazeMonitor(profile)
     for frame in frames(capture, settings.capture_fps):
         detection, mood = detector.analyze(frame, include_mood=settings.mood_hint_enabled)
-        lines = _status_lines(detection, profile)
+        lines = _status_lines(detection, profile, gaze_monitor)
         if mood is not None:
             lines.append(f"tension_hint={_fmt(mood.tension_score)} (experimental)")
 
@@ -79,8 +80,10 @@ def _detect_with_preview(
             break
 
 
-def _status_lines(detection: DetectionResult, profile: CalibrationProfile) -> list[str]:
-    on_screen = is_looking_at_screen(detection, profile)
+def _status_lines(
+    detection: DetectionResult, profile: CalibrationProfile, gaze_monitor: GazeMonitor
+) -> list[str]:
+    on_screen = gaze_monitor.judge(detection)
     yaw_r, pitch_r = profile.on_screen_yaw_range, profile.on_screen_pitch_range
     yaw_line = (
         f"head_yaw={_fmt(detection.head_yaw_deg)} (ok {yaw_r.minimum:.1f}..{yaw_r.maximum:.1f})  "

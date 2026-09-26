@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass, field
 
 from breaktime.core.types import BreakEvent, CalibrationProfile, DetectionResult, TriggerReason
-from breaktime.vision.gaze import is_looking_at_screen
+from breaktime.vision.gaze import GazeMonitor
 
 
 @dataclass
@@ -25,6 +25,9 @@ class VerifiedBreakTracker:
     _away_since: float | None = None
     _completed_at: float | None = None
 
+    def __post_init__(self) -> None:
+        self._gaze_monitor = GazeMonitor(self.calibration)
+
     @property
     def is_verified(self) -> bool:
         return self._completed_at is not None
@@ -37,7 +40,7 @@ class VerifiedBreakTracker:
             # Stepped away entirely -- unambiguous, counts as looking away.
             looking_away = True
         else:
-            on_screen = is_looking_at_screen(result, self.calibration)
+            on_screen = self._gaze_monitor.judge(result)
             if on_screen is None:
                 # No reliable signal this frame (e.g. mid-blink) -- neither confirms
                 # nor breaks an away streak. Treating this as "still on screen" was a
