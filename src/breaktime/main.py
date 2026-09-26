@@ -25,6 +25,7 @@ from breaktime.core.types import (
 from breaktime.debug.preview import run as run_debug_preview
 from breaktime.diagnostics.crash_reporter import install as install_crash_reporter
 from breaktime.notify.interval_dialog import ask_custom_interval_minutes
+from breaktime.notify.stats_window import show_stats_window
 from breaktime.notify.toast import show_break_prompt, show_break_verified, show_calibration_step
 from breaktime.notify.tray import TrayApp
 from breaktime.platform.autostart import set_enabled as set_autostart_enabled
@@ -215,9 +216,8 @@ class Application:
             threading.Thread(target=show_break_verified, daemon=True).start()
 
     def _open_stats(self) -> None:
-        # Tray menu surface exists now; the native stats popup view is a good
-        # "help wanted" issue (see docs/ROADMAP.md) rather than blocking this phase.
         log_event(_logger, "stats_requested")
+        threading.Thread(target=show_stats_window, daemon=True).start()
 
     def _toggle_auto_start(self, enabled: bool) -> None:
         set_autostart_enabled(enabled)

@@ -24,6 +24,25 @@ Standalone Windows installer (PyInstaller + Inno Setup) published via GitHub Rel
 auto-start at login with an opt-out toggle, manual updates for v1 (no auto-updater, no
 background network calls).
 
+## Phase 6 — Real-world hardening (v0.2.0)
+Everything below was found via live testing against a real webcam, not written
+speculatively:
+
+- Personalized calibration rebuilt as a 5-point flow (center + all four screen edges),
+  replacing a single guessed tolerance, after live testing showed the original approach
+  produced both false "still looking" and false "looking away" reads
+- Gaze detection combines head pose with real iris-in-socket eye position (previously
+  head-pose-only, which is why a keyboard glance or eyes-only look wasn't caught)
+- Blink frames are correctly distinguished from a sustained low-EAR gaze signal (a hard
+  glance can also lower EAR, not just a real blink) in both calibration and live judgment
+- Meeting/exam awareness: suppresses the break popup during known video-conferencing
+  apps, plus a manual "Pause Break-Time" tray toggle that fully releases the camera
+- Camera-busy is now a handled, retried condition instead of a silent crash that left the
+  tray inert with no visible error
+- Customizable break interval (presets + custom minutes) from the tray menu
+- Native stats popup (today's verified breaks, current streak) — the tray menu item no
+  longer does nothing
+
 ---
 
 ## Explicitly deferred (not built yet, tracked here so intent is clear)

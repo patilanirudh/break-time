@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "breaktime"
-version = "0.1.0"
+version = "0.2.0"
 description = "Privacy-first eye-strain and break tracker that verifies breaks via on-device vision, not just a dismissible popup."
 readme = "README.md"
 license = "Apache-2.0"
